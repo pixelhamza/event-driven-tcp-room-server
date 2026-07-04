@@ -19,6 +19,6 @@ public:
   int fd() const { return fd_;}
   int isValid() const { return fd_>=0;}
   Socket accept();
-
+  bool sendAll(const char* data , size_t length);
   int recv(char* buffer, size_t bufferSize);
 };

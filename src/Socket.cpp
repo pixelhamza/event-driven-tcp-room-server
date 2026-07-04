@@ -64,3 +64,15 @@ int Socket :: recv(char* buffer,size_t bufferSize){
 
   return static_cast<int>(n);
 }
+
+bool Socket::sendAll(const char* data,size_t length){ 
+  size_t total_sent = 0;
+  while(total_sent < length){ 
+    ssize_t sent = ::send(fd_, data + total_sent, length - total_sent,0);
+    if (sent <= 0) {
+        return false;  
+      }
+      total_sent += sent;
+  }
+  return true;
+}

@@ -49,6 +49,11 @@ int main() {
             std::cout << "Client at fds[" << i << "] has data ready\n";
             char buffer[1024]; 
             int bytesRead = clients[i - 1].recv(buffer,sizeof(buffer) - 1);
+            
+            for(size_t j{}; j < clients.size() ; j++){
+                if( j == i - 1)continue;
+                clients[j].sendAll(buffer , bytesRead);
+            }
             if(bytesRead > 0){
                 std::cout<<" Message by fd " << i << ": "<<buffer;
             }
@@ -60,7 +65,6 @@ int main() {
 
             }
         }
-
         
     }
     return 0;
