@@ -58,3 +58,9 @@ Socket& Socket::operator=(Socket&& other) noexcept {
     }
     return *this;
 }
+
+int Socket :: recv(char* buffer,size_t bufferSize){ 
+  ssize_t n = ::recv(fd_,buffer,bufferSize,0);
+
+  return static_cast<int>(n);
+}

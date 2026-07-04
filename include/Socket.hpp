@@ -1,4 +1,5 @@
 #include <cstdint> 
+#include<cstddef>
 class Socket {
 private:
   int fd_;
@@ -14,8 +15,10 @@ public:
 
   Socket(Socket&& other) noexcept;
   Socket& operator=(Socket&& other) noexcept;
-  
+
   int fd() const { return fd_;}
   int isValid() const { return fd_>=0;}
   Socket accept();
+
+  int recv(char* buffer, size_t bufferSize);
 };
