@@ -50,12 +50,14 @@ int main() {
             char buffer[1024]; 
             int bytesRead = clients[i - 1].recv(buffer,sizeof(buffer) - 1);
             
-            for(size_t j{}; j < clients.size() ; j++){
-                if( j == i - 1)continue;
-                clients[j].sendAll(buffer , bytesRead);
-            }
+           
             if(bytesRead > 0){
+                buffer[bytesRead] = '\0';
                 std::cout<<" Message by fd " << i << ": "<<buffer;
+                for(size_t j{}; j < clients.size() ; j++){
+                    if( j == i - 1)continue;
+                    clients[j].sendAll(buffer , bytesRead);
+                }
             }
             else {
             std::cout << "Client at fds[" << i << "] disconnected\n";
