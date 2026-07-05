@@ -6,6 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_executable(chat_server
     src/main.cpp
+    src/Server.cpp
     src/Socket.cpp
 )
 

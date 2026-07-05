@@ -8,10 +8,10 @@ class Server{
         bool run(u_int16_t);
     private:
         Socket listener_;
-        std::vector<pollfd> fds; 
-        std::vector<Socket> clients; 
+        std::vector<pollfd> fds_; 
+        std::vector<Socket> clients_; 
 
-        void acceptClients(); 
+        void acceptNewClient(); 
         void handleClientData(size_t fd_index);
 
 };
