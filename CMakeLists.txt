@@ -8,6 +8,7 @@ add_executable(chat_server
     src/main.cpp
     src/Server.cpp
     src/Socket.cpp
+    src/Client.cpp
 )
 
 target_include_directories(chat_server PRIVATE include)

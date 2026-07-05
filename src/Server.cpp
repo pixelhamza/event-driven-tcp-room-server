@@ -47,13 +47,13 @@ void Server::acceptNewClient() {
         clientPfd.revents = 0;
         fds_.push_back(clientPfd);
 
-        clients_.push_back(std::move(client));
+        clients_.push_back(Client(std::move(client)));
     }
 }
 
 void Server::handleClientData(size_t fdsIndex) {
     char buffer[1024];
-    int bytesRead = clients_[fdsIndex - 1].recv(buffer, sizeof(buffer) - 1);
+    int bytesRead = clients_[fdsIndex - 1].socket().recv(buffer, sizeof(buffer) - 1);
 
     if (bytesRead > 0) {
         buffer[bytesRead] = '\0';
@@ -61,7 +61,7 @@ void Server::handleClientData(size_t fdsIndex) {
 
         for (size_t j = 0; j < clients_.size(); ++j) {
             if (j == fdsIndex - 1) continue;
-            clients_[j].sendAll(buffer, bytesRead);
+            clients_[j].socket().sendAll(buffer, bytesRead);
         }
     } else {
         std::cout << "Client at fds[" << fdsIndex << "] disconnected\n";
