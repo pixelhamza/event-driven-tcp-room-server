@@ -15,10 +15,13 @@ Socket::~Socket() {
 Socket::Socket(int fd): fd_(fd) {};
 
 bool Socket::listenOn(uint16_t port){ 
+  int opt = 1;
   sockaddr_in addr{};
   addr.sin_family = AF_INET; 
   addr.sin_addr.s_addr = INADDR_ANY;
   addr.sin_port = htons(port);
+
+  setsockopt(fd_, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 
   if(bind(fd_,reinterpret_cast<sockaddr*>(&addr),sizeof(addr)) < 0){
     std::cerr<< " bind failed " << strerror(errno) << "\n";

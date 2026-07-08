@@ -55,17 +55,42 @@ void Server::handleClientData(size_t fdsIndex) {
     char buffer[1024];
     int bytesRead = clients_[fdsIndex - 1].socket().recv(buffer, sizeof(buffer) - 1);
 
-    if (bytesRead > 0) {
-        buffer[bytesRead] = '\0';
-        std::cout << " Message by fd " << fdsIndex << ": " << buffer;
-
-        for (size_t j = 0; j < clients_.size(); ++j) {
-            if (j == fdsIndex - 1) continue;
-            clients_[j].socket().sendAll(buffer, bytesRead);
-        }
-    } else {
-        std::cout << "Client at fds[" << fdsIndex << "] disconnected\n";
+    if (bytesRead <= 0) {
+        std::cout << "Client fd=" << clients_[fdsIndex - 1].fd() << " disconnected\n";
         fds_.erase(fds_.begin() + fdsIndex);
         clients_.erase(clients_.begin() + (fdsIndex - 1));
+        return;
+    }
+
+    buffer[bytesRead] = '\0';
+    std::string message(buffer);
+
+    while (!message.empty() && (message.back() == '\n' || message.back() == '\r')) {
+        message.pop_back();
+    }
+
+    Client& sender = clients_[fdsIndex - 1];
+
+    const std::string nickPrefix = "/nick ";
+    if (message.rfind(nickPrefix, 0) == 0) { 
+        std::string newName = message.substr(nickPrefix.size());
+        if (!newName.empty()) {
+            std::string oldName = sender.username();
+            sender.setUsername(newName);
+
+            std::string notice = oldName + " is now known as " + newName + "\n";
+            std::cout << notice;
+            for (auto& c : clients_) {
+                c.socket().sendAll(notice.c_str(), notice.size());
+            }
+        }
+        return;
+    }
+
+    std::string outgoing = sender.username() + ": " + message + "\n";
+    std::cout << outgoing;
+    for (size_t j = 0; j < clients_.size(); ++j) {
+        if (j == fdsIndex - 1) continue;
+        clients_[j].socket().sendAll(outgoing.c_str(), outgoing.size());
     }
 }
