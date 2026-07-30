@@ -1,5 +1,6 @@
 #pragma once
 #include "Socket.hpp"
+#include<MessageBuffer.hpp>
 #include <string>
 
 class Client {
@@ -11,8 +12,10 @@ public:
 
     const std::string& username() const { return username_; }
     void setUsername(const std::string& name) { username_ = name; }
+    MessageBuffer& buffer() { return buffer_; }
 
 private:
     Socket socket_;
     std::string username_;
+    MessageBuffer buffer_;
 };

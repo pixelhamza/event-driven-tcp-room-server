@@ -70,42 +70,52 @@ void Server::removeClient(size_t fdsIndex)
 
 void Server::handleClientData(size_t fdsIndex) {
     char buffer[1024];
-    int bytesRead = clients_[fdsIndex - 1].socket().recv(buffer, sizeof(buffer) - 1);
+    int bytesRead =
+        clients_[fdsIndex - 1].socket().recv(buffer, sizeof(buffer) - 1);
 
     if (bytesRead <= 0) {
         removeClient(fdsIndex);
         return;
     }
 
-    buffer[bytesRead] = '\0';
-    std::string message(buffer);
+    clients_[fdsIndex - 1].buffer().append(
+        std::string_view(buffer, bytesRead));
 
-    while (!message.empty() && (message.back() == '\n' || message.back() == '\r')) {
-        message.pop_back();
-    }
-
+    auto& msgBuffer = clients_[fdsIndex - 1].buffer();
     Client& sender = clients_[fdsIndex - 1];
 
-    const std::string nickPrefix = "/nick ";
-    if (message.rfind(nickPrefix, 0) == 0) { 
-        std::string newName = message.substr(nickPrefix.size());
-        if (!newName.empty()) {
-            std::string oldName = sender.username();
-            sender.setUsername(newName);
+    while (auto message = msgBuffer.nextMessage()) {
+        const std::string nickPrefix = "/nick ";
 
-            std::string notice = oldName + " is now known as " + newName + "\n";
-            std::cout << notice;
-            for (auto& c : clients_) {
-                c.socket().sendAll(notice.c_str(), notice.size());
+        if (message->rfind(nickPrefix, 0) == 0) {
+            std::string newName = message->substr(nickPrefix.size());
+
+            if (!newName.empty()) {
+                std::string oldName = sender.username();
+                sender.setUsername(newName);
+
+                std::string notice =
+                    oldName + " is now known as " + newName + "\n";
+
+                std::cout << notice;
+                for (auto& c : clients_) {
+                    c.socket().sendAll(notice.c_str(), notice.size());
+                }
             }
-        }
-        return;
-    }
 
-    std::string outgoing = sender.username() + ": " + message + "\n";
-    std::cout << outgoing;
-    for (size_t j = 0; j < clients_.size(); ++j) {
-        if (j == fdsIndex - 1) continue;
-        clients_[j].socket().sendAll(outgoing.c_str(), outgoing.size());
+            continue;
+        }
+        std::string outgoing =
+            sender.username() + ": " + *message + "\n";
+
+        std::cout << outgoing;
+        for (size_t j = 0; j < clients_.size(); ++j) {
+            if (j == fdsIndex - 1)
+                continue;
+
+            clients_[j].socket().sendAll(
+                outgoing.c_str(),
+                outgoing.size());
+        }
     }
 }
