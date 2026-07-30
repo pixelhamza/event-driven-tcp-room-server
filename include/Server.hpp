@@ -12,6 +12,8 @@ class Server{
         std::vector<pollfd> fds_; 
         std::vector<Client> clients_; 
 
+        void removeClient(size_t fd_index);
+
         void acceptNewClient(); 
         void handleClientData(size_t fd_index);
 

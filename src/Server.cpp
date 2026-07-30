@@ -26,8 +26,15 @@ bool Server::run(uint16_t port) {
             acceptNewClient();
         }
 
-        for (size_t i = fds_.size(); i-- > 1; ) {
-            if (fds_[i].revents & POLLIN) {
+        for (size_t i = fds_.size(); i-- > 1;) {
+            short events = fds_[i].revents;
+
+            if (events & (POLLHUP | POLLERR | POLLNVAL)) {
+                removeClient(i);
+                continue;
+            }
+
+            if (events & POLLIN) {
                 handleClientData(i);
             }
         }
@@ -51,14 +58,22 @@ void Server::acceptNewClient() {
     }
 }
 
+void Server::removeClient(size_t fdsIndex)
+{
+    Client& client = clients_[fdsIndex - 1];
+
+    std::cout << "Client fd=" << client.fd() << " disconnected\n";
+
+    fds_.erase(fds_.begin() + fdsIndex);
+    clients_.erase(clients_.begin() + (fdsIndex - 1));
+}
+
 void Server::handleClientData(size_t fdsIndex) {
     char buffer[1024];
     int bytesRead = clients_[fdsIndex - 1].socket().recv(buffer, sizeof(buffer) - 1);
 
     if (bytesRead <= 0) {
-        std::cout << "Client fd=" << clients_[fdsIndex - 1].fd() << " disconnected\n";
-        fds_.erase(fds_.begin() + fdsIndex);
-        clients_.erase(clients_.begin() + (fdsIndex - 1));
+        removeClient(fdsIndex);
         return;
     }
 
