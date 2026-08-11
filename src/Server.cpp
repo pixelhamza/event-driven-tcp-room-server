@@ -1,4 +1,5 @@
 #include "Server.hpp"
+#include "Protocol.hpp"
 #include <iostream>
 #include <utility>
 
@@ -85,37 +86,43 @@ void Server::handleClientData(size_t fdsIndex) {
     Client& sender = clients_[fdsIndex - 1];
 
     while (auto message = msgBuffer.nextMessage()) {
-        const std::string nickPrefix = "/nick ";
+        Command cmd = Protocol::parse(*message);
 
-        if (message->rfind(nickPrefix, 0) == 0) {
-            std::string newName = message->substr(nickPrefix.size());
+        switch (cmd.type) {
+            case CommandType::NICK: {
+                if (!cmd.arg.empty()) {
+                    std::string oldName = sender.username();
+                    sender.setUsername(cmd.arg);
 
-            if (!newName.empty()) {
-                std::string oldName = sender.username();
-                sender.setUsername(newName);
+                    std::string notice =
+                        oldName + " is now known as " + cmd.arg + "\n";
 
-                std::string notice =
-                    oldName + " is now known as " + newName + "\n";
-
-                std::cout << notice;
-                for (auto& c : clients_) {
-                    c.socket().sendAll(notice.c_str(), notice.size());
+                    std::cout << notice;
+                    for (auto& c : clients_) {
+                        c.socket().sendAll(notice.c_str(), notice.size());
+                    }
                 }
+                break;
             }
 
-            continue;
-        }
-        std::string outgoing =
-            sender.username() + ": " + *message + "\n";
+            case CommandType::CHAT_MESSAGE: {
+                std::string outgoing =
+                    sender.username() + ": " + cmd.rawCommand + "\n";
 
-        std::cout << outgoing;
-        for (size_t j = 0; j < clients_.size(); ++j) {
-            if (j == fdsIndex - 1)
-                continue;
+                std::cout << outgoing;
+                for (size_t j = 0; j < clients_.size(); ++j) {
+                    if (j == fdsIndex - 1)
+                        continue;
 
-            clients_[j].socket().sendAll(
-                outgoing.c_str(),
-                outgoing.size());
+                    clients_[j].socket().sendAll(
+                        outgoing.c_str(),
+                        outgoing.size());
+                }
+                break;
+            }
+
+            default:
+                break;
         }
     }
 }
