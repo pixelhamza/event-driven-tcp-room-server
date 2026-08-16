@@ -12,6 +12,7 @@ add_executable(chat_server
     src/MessageBuffer.cpp
     src/Protocol.cpp
     src/Room.cpp
+    src/RoomManager.cpp
 )
 
 target_include_directories(chat_server PRIVATE include)
