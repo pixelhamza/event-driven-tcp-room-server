@@ -11,7 +11,7 @@ Command Protocol::parse(std::string_view input) {
         return Command{CommandType::CHAT_MESSAGE, raw, raw};
     }
 
-    // so we split split the command name and arguments by space
+    // Split the command name and arguments by space
     size_t spacePos = input.find(' ');
     std::string_view cmdStr;
     std::string_view argStr;
@@ -41,6 +41,8 @@ Command Protocol::parse(std::string_view input) {
         type = CommandType::USERS;
     } else if (cmdStr == "/help") {
         type = CommandType::HELP;
+    } else if (cmdStr == "/msg" || cmdStr == "/whisper" || cmdStr == "/w") {
+        type = CommandType::MSG;
     }
 
     return Command{type, std::string(argStr), raw};

@@ -81,6 +81,15 @@ void Server::removeClient(size_t fdsIndex) {
     clients_.erase(clients_.begin() + (fdsIndex - 1));
 }
 
+Client* Server::findClientByUsername(const std::string& username) {
+    for (auto& clientPtr : clients_) {
+        if (clientPtr->username() == username) {
+            return clientPtr.get();
+        }
+    }
+    return nullptr;
+}
+
 void Server::handleClientData(size_t fdsIndex) {
     Client& sender = *clients_[fdsIndex - 1];
     char buffer[1024];
@@ -141,6 +150,46 @@ void Server::handleClientData(size_t fdsIndex) {
                 break;
             }
 
+            case CommandType::MSG: {
+                if (cmd.arg.empty()) {
+                    std::string err = "Usage: /msg <username> <message>\n";
+                    sender.socket().sendAll(err.c_str(), err.size());
+                    break;
+                }
+
+                size_t spacePos = cmd.arg.find(' ');
+                if (spacePos == std::string::npos) {
+                    std::string err = "Usage: /msg <username> <message>\n";
+                    sender.socket().sendAll(err.c_str(), err.size());
+                    break;
+                }
+
+                std::string targetName = cmd.arg.substr(0, spacePos);
+                size_t msgStart = cmd.arg.find_first_not_of(' ', spacePos);
+                if (msgStart == std::string::npos) {
+                    std::string err = "Usage: /msg <username> <message>\n";
+                    sender.socket().sendAll(err.c_str(), err.size());
+                    break;
+                }
+                std::string pmBody = cmd.arg.substr(msgStart);
+
+                Client* recipient = findClientByUsername(targetName);
+                if (!recipient) {
+                    std::string err = "*** User '" + targetName + "' not found ***\n";
+                    sender.socket().sendAll(err.c_str(), err.size());
+                } else if (recipient == &sender) {
+                    std::string err = "*** You cannot send a private message to yourself ***\n";
+                    sender.socket().sendAll(err.c_str(), err.size());
+                } else {
+                    std::string incomingPm = "[PM from " + sender.username() + "]: " + pmBody + "\n";
+                    recipient->socket().sendAll(incomingPm.c_str(), incomingPm.size());
+
+                    std::string outgoingPm = "[PM to " + recipient->username() + "]: " + pmBody + "\n";
+                    sender.socket().sendAll(outgoingPm.c_str(), outgoingPm.size());
+                }
+                break;
+            }
+
             case CommandType::HELP: {
                 sendHelp(sender);
                 break;
@@ -167,11 +216,12 @@ void Server::handleClientData(size_t fdsIndex) {
 
 void Server::sendHelp(Client& client) {
     std::string help = "=== Available Commands ===\n"
-                       "  /nick <name>  - Change your username\n"
-                       "  /join <room>  - Join or create a room (e.g. /join #tech)\n"
-                       "  /leave        - Return to default #lobby\n"
-                       "  /rooms        - List all active rooms\n"
-                       "  /users        - List users in your current room\n"
-                       "  /help         - Show this help message\n";
+                       "  /nick <name>          - Change your username\n"
+                       "  /join <room>          - Join or create a room (e.g. /join #tech)\n"
+                       "  /leave                - Return to default #lobby\n"
+                       "  /rooms                - List all active rooms\n"
+                       "  /users                - List users in your current room\n"
+                       "  /msg <user> <msg>     - Send a private message to a user\n"
+                       "  /help                 - Show this help message\n";
     client.socket().sendAll(help.c_str(), help.size());
 }

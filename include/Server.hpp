@@ -20,4 +20,5 @@ private:
     void removeClient(size_t fdsIndex);
     void handleClientData(size_t fdsIndex);
     void sendHelp(Client& client);
+    Client* findClientByUsername(const std::string& username);
 };
