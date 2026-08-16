@@ -1,7 +1,9 @@
 #pragma once
 #include "Socket.hpp"
-#include<MessageBuffer.hpp>
+#include "MessageBuffer.hpp"
 #include <string>
+
+class Room;
 
 class Client {
 public:
@@ -14,8 +16,12 @@ public:
     void setUsername(const std::string& name) { username_ = name; }
     MessageBuffer& buffer() { return buffer_; }
 
+    Room* currentRoom() const { return currentRoom_; }
+    void setCurrentRoom(Room* room) { currentRoom_ = room; }
+
 private:
     Socket socket_;
     std::string username_;
     MessageBuffer buffer_;
+    Room* currentRoom_ = nullptr;
 };

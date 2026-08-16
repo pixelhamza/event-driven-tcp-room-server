@@ -8,7 +8,7 @@ bool Server::run(uint16_t port) {
         std::cerr << "Failed to start server\n";
         return false;
     }
-    std::cout << "We listening on " << port << std::endl;
+    std::cout << "Server listening on port " << port << "...\n";
 
     pollfd listenerPfd;
     listenerPfd.fd = listener_.fd();
@@ -45,45 +45,55 @@ bool Server::run(uint16_t port) {
 }
 
 void Server::acceptNewClient() {
-    Socket client = listener_.accept();
-    if (client.isValid()) {
-        std::cout << "New Connection established" << std::endl;
+    Socket clientSocket = listener_.accept();
+    if (clientSocket.isValid()) {
+        std::cout << "New client connected (fd=" << clientSocket.fd() << ")\n";
 
         pollfd clientPfd;
-        clientPfd.fd = client.fd();
+        clientPfd.fd = clientSocket.fd();
         clientPfd.events = POLLIN;
         clientPfd.revents = 0;
         fds_.push_back(clientPfd);
 
-        clients_.push_back(Client(std::move(client)));
+        auto clientPtr = std::make_unique<Client>(std::move(clientSocket));
+        Client* rawPtr = clientPtr.get();
+        clients_.push_back(std::move(clientPtr));
+
+        // Move newly connected client into default #lobby room
+        roomManager_.moveClient(rawPtr, "#lobby");
+
+        // Send welcome notice & command help
+        std::string welcome = "=== Welcome to TCP Room Chat Server! ===\n"
+                              "You joined #lobby. Type /help for available commands.\n";
+        rawPtr->socket().sendAll(welcome.c_str(), welcome.size());
     }
 }
 
-void Server::removeClient(size_t fdsIndex)
-{
-    Client& client = clients_[fdsIndex - 1];
+void Server::removeClient(size_t fdsIndex) {
+    Client* clientPtr = clients_[fdsIndex - 1].get();
 
-    std::cout << "Client fd=" << client.fd() << " disconnected\n";
+    std::cout << "Client " << clientPtr->username() << " (fd=" << clientPtr->fd() << ") disconnected\n";
+
+    // Cleanly remove from current room before destroying client
+    roomManager_.removeClient(clientPtr);
 
     fds_.erase(fds_.begin() + fdsIndex);
     clients_.erase(clients_.begin() + (fdsIndex - 1));
 }
 
 void Server::handleClientData(size_t fdsIndex) {
+    Client& sender = *clients_[fdsIndex - 1];
     char buffer[1024];
-    int bytesRead =
-        clients_[fdsIndex - 1].socket().recv(buffer, sizeof(buffer) - 1);
+    int bytesRead = sender.socket().recv(buffer, sizeof(buffer) - 1);
 
     if (bytesRead <= 0) {
         removeClient(fdsIndex);
         return;
     }
 
-    clients_[fdsIndex - 1].buffer().append(
-        std::string_view(buffer, bytesRead));
+    sender.buffer().append(std::string_view(buffer, bytesRead));
 
-    auto& msgBuffer = clients_[fdsIndex - 1].buffer();
-    Client& sender = clients_[fdsIndex - 1];
+    auto& msgBuffer = sender.buffer();
 
     while (auto message = msgBuffer.nextMessage()) {
         Command cmd = Protocol::parse(*message);
@@ -94,35 +104,74 @@ void Server::handleClientData(size_t fdsIndex) {
                     std::string oldName = sender.username();
                     sender.setUsername(cmd.arg);
 
-                    std::string notice =
-                        oldName + " is now known as " + cmd.arg + "\n";
-
-                    std::cout << notice;
-                    for (auto& c : clients_) {
-                        c.socket().sendAll(notice.c_str(), notice.size());
+                    std::string notice = "*** " + oldName + " is now known as " + cmd.arg + " ***\n";
+                    if (sender.currentRoom()) {
+                        sender.currentRoom()->sendSystemNotice(notice);
                     }
                 }
                 break;
             }
 
-            case CommandType::CHAT_MESSAGE: {
-                std::string outgoing =
-                    sender.username() + ": " + cmd.rawCommand + "\n";
-
-                std::cout << outgoing;
-                for (size_t j = 0; j < clients_.size(); ++j) {
-                    if (j == fdsIndex - 1)
-                        continue;
-
-                    clients_[j].socket().sendAll(
-                        outgoing.c_str(),
-                        outgoing.size());
+            case CommandType::JOIN: {
+                if (!cmd.arg.empty()) {
+                    roomManager_.moveClient(&sender, cmd.arg);
+                } else {
+                    std::string err = "Usage: /join <room_name>\n";
+                    sender.socket().sendAll(err.c_str(), err.size());
                 }
                 break;
             }
 
-            default:
+            case CommandType::LEAVE: {
+                roomManager_.moveClient(&sender, "#lobby");
                 break;
+            }
+
+            case CommandType::ROOMS: {
+                std::string roomList = roomManager_.listRooms();
+                sender.socket().sendAll(roomList.c_str(), roomList.size());
+                break;
+            }
+
+            case CommandType::USERS: {
+                if (sender.currentRoom()) {
+                    std::string userList = sender.currentRoom()->getMemberList();
+                    sender.socket().sendAll(userList.c_str(), userList.size());
+                }
+                break;
+            }
+
+            case CommandType::HELP: {
+                sendHelp(sender);
+                break;
+            }
+
+            case CommandType::CHAT_MESSAGE: {
+                if (sender.currentRoom()) {
+                    std::string outgoing = sender.username() + ": " + cmd.rawCommand + "\n";
+                    std::cout << "[" << sender.currentRoom()->name() << "] " << outgoing;
+                    sender.currentRoom()->broadcast(outgoing, &sender);
+                }
+                break;
+            }
+
+            case CommandType::UNKNOWN:
+            default: {
+                std::string err = "Unknown command. Type /help for options.\n";
+                sender.socket().sendAll(err.c_str(), err.size());
+                break;
+            }
         }
     }
+}
+
+void Server::sendHelp(Client& client) {
+    std::string help = "=== Available Commands ===\n"
+                       "  /nick <name>  - Change your username\n"
+                       "  /join <room>  - Join or create a room (e.g. /join #tech)\n"
+                       "  /leave        - Return to default #lobby\n"
+                       "  /rooms        - List all active rooms\n"
+                       "  /users        - List users in your current room\n"
+                       "  /help         - Show this help message\n";
+    client.socket().sendAll(help.c_str(), help.size());
 }
