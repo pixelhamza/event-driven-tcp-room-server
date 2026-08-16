@@ -1,0 +1,6 @@
+build/
+.git/
+.gitignore
+README.md
+architecture.png
+diagram-export*.png
